@@ -693,6 +693,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbze-wSusQhv98g6cHHQ6nIR
         stepMin: parseInt(rawConfig["タイムテーブルの刻み幅(分)"] || "30", 10),
         logoUrl: rawConfig["ロゴ画像URL"] || "",
         hashtag: rawConfig["SNSハッシュタグ"] || "#ハッシュタグ",
+        shareText: rawConfig["SNSシェアテキスト"] || "",
         allowZeroMinTransfer: String(rawConfig["0分移動可否"] || "").trim() === '0分移動OK',
         numDays: parseInt(rawConfig["開催日数"] || "1", 10),
         day1Label: rawConfig["1日目のラベル"] || "1日目",
