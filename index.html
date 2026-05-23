@@ -1404,8 +1404,10 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbze-wSusQhv98g6cHHQ6nIR
         if (!blob) throw new Error("Blobの生成に失敗しました");
 
         const file = new File([blob], `hashigo-pass-${config.date}.png`, { type: 'image/png' });
-        const shareText = `${config.title}のMyハシゴテーブルを作成したよ！\n${config.hashtag} \n${window.location.href}`;
+        const baseText = config.shareText ? config.shareText : `${config.title}のMyハシゴテーブルを作成したよ！`;
+        const shareText = `${baseText}\n${config.hashtag}\n${window.location.href}`;
 
+        
         const isAndroid = /Android/i.test(navigator.userAgent);
 
         if (isIOS) {
