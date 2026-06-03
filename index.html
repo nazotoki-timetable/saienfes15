@@ -390,7 +390,12 @@
 
       </div>
 
-      <div class="flex justify-end mt-4 px-2 admin-ui gap-4">
+      <div class="flex justify-between items-center mt-4 px-2 admin-ui">
+        <button id="hide-shows-btn" onclick="openHideShowsModal()"
+          class="text-main/60 hover:text-main text-[10px] font-black uppercase border border-main/10 bg-white/50 px-3 py-1.5 rounded-md transition-all flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">visibility_off</span>
+          <span id="hide-shows-btn-text">公演の表示・非表示設定</span>
+        </button>
         <button onclick="togglePdfMode()"
           class="text-main/60 hover:text-main text-[10px] font-black uppercase border border-main/10 bg-white/50 px-3 py-1.5 rounded-md transition-all">
           📄 PDF・画像作成モード
@@ -473,12 +478,12 @@
       </div>
 
       <div id="capture-area"
-        class="bg-[#ffffff] p-7 relative overflow-hidden rounded-[2.5rem] shadow-2xl border-4 border-main flex-1 overflow-y-auto no-scrollbar">
+        class="bg-[#f9f4f1] p-7 relative overflow-hidden rounded-[2.5rem] shadow-2xl border-4 border-main flex-1 overflow-y-auto no-scrollbar">
 
         <div class="border-b-2 border-dashed border-accent pb-5 mb-6 relative z-10 text-center">
           <div id="modal-fes-title" class="hidden">---</div>
           <img id="modal-fes-logo" src="./logo.png" alt="Logo" class="w-48 md:w-56 h-auto mx-auto mb-2 object-contain">
-          <div id="modal-fes-date" class="text-[10px] font-bold text-slate-500 tracking-[0.3em] block uppercase">---
+          <div id="modal-fes-date" class="text-[10px] font-bold text-slate-500 tracking-[0.3em] hidden uppercase">---
           </div>
         </div>
 
@@ -514,6 +519,48 @@
     </div>
   </div>
 
+  <!-- 公演の表示・非表示設定モーダル -->
+  <div id="hide-shows-modal"
+    class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+    <div
+      class="bg-[#f1f5f9] w-full max-w-md rounded-2xl p-8 md:p-10 shadow-2xl relative border border-slate-200/50 text-center flex flex-col max-h-[90vh]">
+      <button onclick="closeHideShowsModal()"
+        class="absolute top-6 right-6 text-slate-400 hover:text-slate-600 text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
+
+      <div class="flex flex-col items-center justify-center gap-1.5 mb-6">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-main text-2xl">visibility_off</span>
+          <h2 class="font-black text-xl italic tracking-tighter text-main uppercase">公演の表示・非表示設定</h2>
+        </div>
+      </div>
+
+      <div
+        class="text-xs font-bold text-slate-500 mb-5 leading-relaxed text-left bg-white p-3.5 rounded-xl border border-slate-200 flex items-start gap-2 shadow-sm">
+        <span class="material-symbols-outlined text-main text-[18px] shrink-0 mt-0.5">info</span>
+        <div>
+          <span class="text-main">ハシゴ計画を立てやすくするために、表示する公演を整理できます。</span><br>
+          表示したい公演にチェックを入れ、非表示にしたい公演のチェックを外してください。
+        </div>
+      </div>
+
+      <div class="flex justify-end mb-3">
+        <button onclick="resetHideShowsModal()"
+          class="text-[10px] font-black tracking-widest text-main/60 hover:text-main hover:bg-slate-100 transition-colors uppercase border border-slate-200 bg-white px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
+          <span class="material-symbols-outlined text-[14px]">restart_alt</span>すべての公演を表示
+        </button>
+      </div>
+
+      <!-- 公演リスト (スクロールエリア) -->
+      <div id="hide-shows-list"
+        class="flex-1 overflow-y-auto no-scrollbar space-y-3 pr-1 text-left border-y border-slate-200/60 py-4 max-h-[50vh]">
+        <!-- JSで動的に生成 -->
+      </div>
+
+      <button onclick="applyHiddenShows()"
+        class="w-full mt-6 bg-main text-white py-4 rounded-xl font-[900] shadow-lg text-[11px] uppercase tracking-widest active:scale-95 transition-all">設定を適用する</button>
+    </div>
+  </div>
+
 
 
 
@@ -523,11 +570,39 @@
     const API_URL = 'https://script.google.com/macros/s/AKfycbze-wSusQhv98g6cHHQ6nIRXVPIYCacf-kP1SzZfkYQaJCKUTHSpTBOe0XIMv7w9eQVvA/exec';
     // ▲▲▲ ▲▲▲ ▲▲▲ ▲▲▲ ▲▲▲ ▲▲▲ ▲▲▲ ▲▲▲
 
+    /**
+     * Google Drive の共有リンクを直リンクまたはサムネイル用URLに変換する
+     * @param {string} url - 変換前のURL
+     * @param {boolean} asThumbnail - サムネイル用（サイズ1000px制限）に変換するかどうか
+     * @returns {string} 変換後のURL
+     */
+    function convertDriveUrl(url, asThumbnail = false) {
+      if (!url) return "";
+      let id = "";
+      if (url.includes("drive.google.com")) {
+        const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (fileDMatch) {
+          id = fileDMatch[1];
+        } else {
+          const openIdMatch = url.match(/[\?&]id=([a-zA-Z0-9_-]+)/);
+          if (openIdMatch) {
+            id = openIdMatch[1];
+          }
+        }
+      }
+      if (id) {
+        const size = asThumbnail ? "w1000" : "w2000";
+        return `https://drive.google.com/thumbnail?id=${id}&sz=${size}`;
+      }
+      return url;
+    }
+
     let config = {};
     let allShows = [];
     let selectedIds = [];
     let heatmapData = {};
     let heatmapDebounceTimer = null;
+    const hiddenShowTitles = new Set();
 
     const HEADER_OFFSET = 240;
     const PIXELS_PER_HOUR = 70;
@@ -637,9 +712,15 @@
         activeTab.classList.remove('text-slate-500', 'hover:bg-white/60');
         activeTab.classList.add('bg-main', 'text-white', 'shadow-md');
       }
-      const filteredShows = currentFilterType === 'ALL'
-        ? allShows.filter(s => (s["日程"] || "1日目") === activeDay)
-        : allShows.filter(s => (s["日程"] || "1日目") === activeDay && ((s["予約形式"] || "") === currentFilterType || (s["予約形式"] || "").startsWith(currentFilterType)));
+      const filteredShows = allShows.filter(s => {
+        if ((s["日程"] || "1日目") !== activeDay) return false;
+        if (currentFilterType !== 'ALL') {
+          const type = s["予約形式"] || "";
+          if (type !== currentFilterType && !type.startsWith(currentFilterType)) return false;
+        }
+        if (hiddenShowTitles.has(s["公演名"])) return false;
+        return true;
+      });
       renderTimetable(filteredShows);
       syncScrollbars();
     }
@@ -656,9 +737,15 @@
         activeBtn.classList.remove('text-slate-500', 'hover:bg-white/60');
         activeBtn.classList.add('bg-main', 'text-white', 'shadow-md', 'active-filter');
       }
-      const filteredShows = currentFilterType === 'ALL'
-        ? allShows.filter(s => (s["日程"] || "1日目") === activeDay)
-        : allShows.filter(s => (s["日程"] || "1日目") === activeDay && ((s["予約形式"] || "") === currentFilterType || (s["予約形式"] || "").startsWith(currentFilterType)));
+      const filteredShows = allShows.filter(s => {
+        if ((s["日程"] || "1日目") !== activeDay) return false;
+        if (currentFilterType !== 'ALL') {
+          const type = s["予約形式"] || "";
+          if (type !== currentFilterType && !type.startsWith(currentFilterType)) return false;
+        }
+        if (hiddenShowTitles.has(s["公演名"])) return false;
+        return true;
+      });
       renderTimetable(filteredShows);
       syncScrollbars();
     }
@@ -716,6 +803,7 @@
         hashtag: rawConfig["SNSハッシュタグ"] || "#ハッシュタグ",
         shareText: rawConfig["SNSシェアテキスト"] || "",
         allowZeroMinTransfer: String(rawConfig["0分移動可否"] || "").trim() === '0分移動OK',
+        allowSoldOutSelect: String(rawConfig["完売公演の選択可否"] || "").trim() === '選択OK',
         numDays: parseInt(rawConfig["開催日数"] || "1", 10),
         day1Label: rawConfig["1日目のラベル"] || "1日目",
         day2Label: rawConfig["2日目のラベル"] || "2日目",
@@ -745,7 +833,8 @@
       document.getElementById('modal-fes-date').innerText = formatFesDate(config.displayDate);
 
       if (config.headerUrl) {
-        document.getElementById('header-bg').style.backgroundImage = `url('${config.headerUrl}')`;
+        const processedHeaderUrl = convertDriveUrl(config.headerUrl);
+        document.getElementById('header-bg').style.backgroundImage = `url('${processedHeaderUrl}')`;
       }
       document.getElementById('loading-msg').classList.add('hidden');
 
@@ -769,11 +858,22 @@
 
       // タイプフィルターの生成
       const filterContainer = document.getElementById('filter-buttons-container');
-      filterContainer.innerHTML = `
-          <button onclick="applyTypeFilter('ALL')" id="filter-btn-ALL" class="filter-btn active-filter bg-main text-white shadow-md px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">すべて</button>
-          <button onclick="applyTypeFilter('事前予約')" id="filter-btn-PRE" class="filter-btn text-slate-500 hover:bg-white/60 px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">事前予約</button>
-          <button onclick="applyTypeFilter('当日受付(ファミレス式)')" id="filter-btn-DAY" class="filter-btn text-slate-500 hover:bg-white/60 px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">当日受付</button>
-        `;
+      const hasDayShow = allShows.some(s => {
+        const type = s["予約形式"] || "";
+        return type.includes("当日受付") || type.startsWith("当日");
+      });
+
+      if (hasDayShow) {
+        filterContainer.innerHTML = `
+            <button onclick="applyTypeFilter('ALL')" id="filter-btn-ALL" class="filter-btn active-filter bg-main text-white shadow-md px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">すべて</button>
+            <button onclick="applyTypeFilter('事前予約')" id="filter-btn-PRE" class="filter-btn text-slate-500 hover:bg-white/60 px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">事前予約</button>
+            <button onclick="applyTypeFilter('当日受付(ファミレス式)')" id="filter-btn-DAY" class="filter-btn text-slate-500 hover:bg-white/60 px-3 py-2.5 md:px-4 rounded-full text-[11px] font-black transition-all whitespace-nowrap">当日受付</button>
+          `;
+        filterContainer.classList.remove('hidden');
+      } else {
+        filterContainer.innerHTML = '';
+        filterContainer.classList.add('hidden');
+      }
 
       const axis = document.getElementById('time-axis');
       axis.innerHTML = '';
@@ -825,10 +925,7 @@
         const c = colors[index % colors.length];
         const columnHeight = (config.endHour - config.startHour + 1) * PIXELS_PER_HOUR + currentHeaderOffset;
 
-        let imageUrl = base["公演ビジュアルURL"];
-        if (imageUrl && imageUrl.includes("drive.google.com/uc?export=view&id=")) {
-          imageUrl = imageUrl.replace("uc?export=view&id=", "thumbnail?id=") + "&sz=w1000";
-        }
+        let imageUrl = convertDriveUrl(base["公演ビジュアルURL"], true);
 
         const isHeaderNoise = base["ノイズ演出"] === true || String(base["ノイズ演出"]).toUpperCase() === "TRUE";
 
@@ -928,8 +1025,10 @@
           const startStr = show["開始時間(hh:mm)"] || show.start;
           if (!startStr || !startStr.includes(":")) return;
           const isSoldOut = show["完売設定"] === true || show["完売設定"] === "true" || show["完売設定"] === "完売" || show["完売設定"] === "売切" || show["完売"] === true || show["完売"] === "true" || show["完売"] === "完売";
-          const soldOutClass = isSoldOut ? "opacity-40 grayscale pointer-events-none shadow-none" : "cursor-pointer";
-          const soldOutBadge = isSoldOut ? `<div class="absolute inset-0 flex items-center justify-center z-10"><span class="bg-slate-700 text-white text-[8px] font-black px-2 py-0.5 rounded shadow-lg transform -rotate-12 uppercase text-center tracking-widest">SOLD OUT</span></div>` : "";
+          const soldOutClass = isSoldOut
+            ? (config.allowSoldOutSelect ? "opacity-40 grayscale cursor-pointer" : "opacity-40 grayscale pointer-events-none shadow-none")
+            : "cursor-pointer";
+          const soldOutBadge = isSoldOut ? `<div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"><span class="bg-slate-700 text-white text-[8px] font-black px-2 py-0.5 rounded shadow-lg transform -rotate-12 uppercase text-center tracking-widest">SOLD OUT</span></div>` : "";
           const showId = show.id || `show-${index}-${Math.random().toString(36).substr(2, 9)}`;
           show.id = showId;
           const currentShowCount = heatmapData[showId] || 0;
@@ -1180,7 +1279,7 @@
         const tA = (a["開始時間(hh:mm)"] || a.start) || "";
         const tB = (b["開始時間(hh:mm)"] || b.start) || "";
         return timeToMinutes(tA) - timeToMinutes(tB);
-       // return tA.localeCompare(tB);
+        //return tA.localeCompare(tB);
       });
       let overlap = false;
       for (let i = 0; i < sel.length - 1; i++) {
@@ -1468,6 +1567,110 @@
       } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
+      }
+    }
+
+    // --- 公演の表示・非表示設定モーダルの制御 ---
+    function openHideShowsModal() {
+      renderHideShowsModalList();
+      document.getElementById('hide-shows-modal').classList.remove('hidden');
+    }
+
+    function closeHideShowsModal() {
+      document.getElementById('hide-shows-modal').classList.add('hidden');
+    }
+
+    // 重複を排除した全公演のリストを描画する
+    function renderHideShowsModalList() {
+      const container = document.getElementById('hide-shows-list');
+      container.innerHTML = '';
+
+      // 全公演データをスキャンしてユニークな公演名と団体名を取得
+      const uniqueShows = [];
+      const seenTitles = new Set();
+      allShows.forEach(s => {
+        const title = s["公演名"];
+        if (title && !seenTitles.has(title)) {
+          seenTitles.add(title);
+          uniqueShows.push({
+            title: title,
+            circle: s["団体名"] || s["サークル名"] || "不明"
+          });
+        }
+      });
+
+      // 団体名→公演名の順でソート（見やすさのため）
+      uniqueShows.sort((a, b) => a.circle.localeCompare(b.circle) || a.title.localeCompare(b.title));
+
+      uniqueShows.forEach((show, index) => {
+        const isChecked = !hiddenShowTitles.has(show.title);
+        const checkboxId = `hide-show-check-${index}`;
+        const labelId = `hide-show-label-${index}`;
+
+        const opacityClass = isChecked ? 'bg-white border-slate-200/80' : 'opacity-50 bg-slate-200/40 border-transparent shadow-none';
+
+        container.innerHTML += `
+          <label id="${labelId}" for="${checkboxId}" 
+            class="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border select-none shadow-sm ${opacityClass}">
+            <input type="checkbox" id="${checkboxId}" data-title="${show.title.replace(/"/g, '&quot;')}" ${isChecked ? 'checked' : ''}
+              onchange="toggleLabelStyle(${index}, this.checked)"
+              class="mt-1.5 w-4.5 h-4.5 text-main bg-gray-100 border-gray-300 rounded focus:ring-main focus:ring-2 accent-main">
+            <div class="flex-1">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">${show.circle}</div>
+              <div class="text-xs font-bold text-main leading-tight">${show.title}</div>
+            </div>
+          </label>
+        `;
+      });
+    }
+
+    // チェック状態によってラベルの透明度（グレーアウト）を動的に切り替える
+    function toggleLabelStyle(index, isChecked) {
+      const label = document.getElementById(`hide-show-label-${index}`);
+      if (label) {
+        if (isChecked) {
+          label.classList.remove('opacity-50', 'bg-slate-200/40', 'border-transparent', 'shadow-none');
+          label.classList.add('bg-white', 'border-slate-200/80');
+        } else {
+          label.classList.add('opacity-50', 'bg-slate-200/40', 'border-transparent', 'shadow-none');
+          label.classList.remove('bg-white', 'border-slate-200/80');
+        }
+      }
+    }
+
+    // 設定をリセット（すべて表示）
+    function resetHideShowsModal() {
+      const checkboxes = document.querySelectorAll('#hide-shows-list input[type="checkbox"]');
+      checkboxes.forEach((cb, index) => {
+        cb.checked = true;
+        toggleLabelStyle(index, true);
+      });
+    }
+
+    // 設定を適用
+    function applyHiddenShows() {
+      const checkboxes = document.querySelectorAll('#hide-shows-list input[type="checkbox"]');
+      hiddenShowTitles.clear();
+      checkboxes.forEach(cb => {
+        if (!cb.checked) {
+          hiddenShowTitles.add(cb.getAttribute('data-title'));
+        }
+      });
+
+      closeHideShowsModal();
+      updateHideShowsButton();
+      filterShows(activeDay);
+      updateUI();
+    }
+
+    // 起動ボタンのテキスト（件数バッジ）を更新
+    function updateHideShowsButton() {
+      const btnText = document.getElementById('hide-shows-btn-text');
+      const count = hiddenShowTitles.size;
+      if (count > 0) {
+        btnText.innerText = `公演の表示・非表示設定 (${count}件非表示)`;
+      } else {
+        btnText.innerText = '公演の表示・非表示設定';
       }
     }
 
